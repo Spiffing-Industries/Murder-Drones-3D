@@ -556,6 +556,16 @@ def main(FRAGMENT_SHADER=""):
             objectId = Object["objectID"]
             PlayerMeshes.append([x,y,z,r])
             PlayerObjectIDs.append(objectId)
+
+    with SpiffModel.open("Gun.spiffmodel") as file:
+        GunMeshes = []
+        GunObjectIDS = []
+        for Object in file.getModelObjects():
+            x,y,z = [Object["position"][x] for x in ["x","y","z"]]
+            r = Object["radius"]
+            objectId = Object["objectID"]
+            GunMeshes.append([x,y,z,r])
+            GunObjectIDS.append(objectId)
         """
         light_positions = []
         lights_colors = []
@@ -590,6 +600,8 @@ def main(FRAGMENT_SHADER=""):
     ObjectIDS.extend(PlayerObjectIDs)
     Matte.extend([1.0 for _ in PlayerObjectIDs])
 
+    Matte.extend([1.0 for _ in GunMeshes])
+
     
     
     ObjectIDList = np.array(list(set(ObjectIDS)),dtype=np.float32)
@@ -621,6 +633,7 @@ def main(FRAGMENT_SHADER=""):
 
     FrameStart = time.time()
     EnablePhysics = True
+    gunAngle = 0
     while running:
         DeltaTime = time.time()-FrameStart
         if DeltaTime != 0:
@@ -656,16 +669,30 @@ def main(FRAGMENT_SHADER=""):
 
         ObjectMeshes.extend(WorldObjectMeshes)
         ObjectIDS.extend(WorldObjectIDS)
-        print(playerPos)
+        #print(playerPos)
         meshOffset = playerPos.copy()
         meshOffset.append(0)
         ObjectMeshes.extend([[str(float(i)+j) for i,j in zip(objectPos,meshOffset)] for objectPos in  PlayerMeshes])
+        gunAngle = ((gunAngle*9) + (yaw*1))/10
+        #gunAngle += 0.01
+        #gunAngle = yaw
+        print(gunAngle)
+        gunOffset = list(rotate_on_y([0.9,0,0],gunAngle))
+        gunOffset.append(0)
+        RotatedGun = []
+        for GunObject in GunMeshes:
+            x,y,z,r = GunObject
+            x1,y1,z1 = rotate_on_y([float(w) for w in [x,y,z]],gunAngle)
+            RotatedGun.append([x1,y1,z1,r])
+        ObjectMeshes.extend([[str(float(i)+j+a) for i,j,a in zip(objectPos,meshOffset,gunOffset)] for objectPos in  RotatedGun])
         ObjectIDS.extend(PlayerObjectIDs)
+
+        ObjectIDS.extend(GunObjectIDS)
 
 
         ObjectIDList = np.array(list(set(ObjectIDS)),dtype=np.float32)
         ObjectIDS = np.array(ObjectIDS,dtype=np.float32)
-        print(ObjectMeshes)
+        #print(ObjectMeshes)
         ObjectMeshes = np.array(ObjectMeshes,dtype=np.float32)
 
 
@@ -786,7 +813,7 @@ def main(FRAGMENT_SHADER=""):
         camera_dir = camera_dir[:3]
 
 
-        camera_pos = [i+j+b for i,j,b in zip(playerPos,rotate_on_x_then_y([1,1,4],pitch, yaw ),[0,0,0])]
+        camera_pos = [i+j+b for i,j,b in zip(playerPos,rotate_on_x_then_y([1,1,2],pitch, yaw ),[0,0,0])]
 
 
         if EnablePhysics:
