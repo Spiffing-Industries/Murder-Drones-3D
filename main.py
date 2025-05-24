@@ -232,6 +232,25 @@ def load_3d_texture(folder_path):
 
 
 
+def rotate_on_x(point, angle):
+    x, y, z = point
+    rotated_y = (math.sin(angle) * y) - (math.cos(angle) * z)
+    rotated_z = (math.cos(angle) * y) + (math.sin(angle) * z)
+    return (x, rotated_y, rotated_z)
+
+def rotate_on_y(point, angle):
+    x, y, z = point
+    rotated_x = (math.sin(angle) * x) - (math.cos(angle) * z)
+    rotated_z = (math.cos(angle) * x) + (math.sin(angle) * z)
+    return (rotated_x, y, rotated_z)
+
+def rotate_on_x_then_y(point, angle_x, angle_y):
+    rotated_point_x = rotate_on_x(point, angle_x)
+    rotated_point_xy = rotate_on_y(rotated_point_x, angle_y)
+    return rotated_point_xy
+
+
+
 
 def main(FRAGMENT_SHADER=""):
 
@@ -480,6 +499,7 @@ def main(FRAGMENT_SHADER=""):
     
     camera_pos = np.array([0.0, 0.0, 0.0], dtype=np.float32)
     camera_dir = np.array([0.0, 0.0, -1.0], dtype=np.float32)
+    playerPos = [0.0,0.0,0.0]
 
     clock = pygame.time.Clock()
 
@@ -501,14 +521,14 @@ def main(FRAGMENT_SHADER=""):
 
     
     with SpiffModel.open("TestModel.spiffmodel") as file:
-        ObjectMeshes = []
-        ObjectIDS = []
+        WorldObjectMeshes = []
+        WorldObjectIDS = []
         for Object in file.getModelObjects():
             x,y,z = [Object["position"][x] for x in ["x","y","z"]]
             r = Object["radius"]
             objectId = Object["objectID"]
-            ObjectMeshes.append([x,y,z,r])
-            ObjectIDS.append(objectId)
+            WorldObjectMeshes.append([x,y,z,r])
+            WorldObjectIDS.append(objectId)
 
         light_positions = []
         lights_colors = []
@@ -519,13 +539,57 @@ def main(FRAGMENT_SHADER=""):
             light_positions.append([x,y,z,r])
             lights_colors.append([r,g,b])
 
+
+
+
+
+    with SpiffModel.open("Player.spiffmodel") as file:
+        PlayerMeshes = []
+        PlayerObjectIDs = []
+        for Object in file.getModelObjects():
+            x,y,z = [Object["position"][x] for x in ["x","y","z"]]
+            r = Object["radius"]
+            objectId = Object["objectID"]
+            PlayerMeshes.append([x,y,z,r])
+            PlayerObjectIDs.append(objectId)
+        """
+        light_positions = []
+        lights_colors = []
+        for Light in file.getLightObjects():
+            x,y,z = [Light["position"][x] for x in ["x","y","z"]]
+            r,g,b = [Light["color"][x] for x in ["r","g","b"]]
+            r = Light["radius"]
+            light_positions.append([x,y,z,r])
+            lights_colors.append([r,g,b])
+        """
+
+
+            
+
     light_positions = np.array(light_positions,dtype=np.float32)
     lights_colors = np.array(lights_colors,dtype=np.float32)
     
-            
+
+
+    ObjectMeshes = []
+    ObjectIDS = []
+
+    ObjectMeshes.extend(WorldObjectMeshes)
+    ObjectIDS.extend(WorldObjectIDS)
+    print(playerPos)
+    meshOffset = playerPos.copy()
+    meshOffset.append(0)
+    ObjectMeshes.extend([[str(float(i)+j) for i,j in zip(objectPos,meshOffset)] for objectPos in  PlayerMeshes])
+    ObjectIDS.extend(PlayerObjectIDs)
+
+    
+    
     ObjectIDList = np.array(list(set(ObjectIDS)),dtype=np.float32)
     ObjectIDS = np.array(ObjectIDS,dtype=np.float32)
+    print(ObjectMeshes)
     ObjectMeshes = np.array(ObjectMeshes,dtype=np.float32)
+
+    
 
     PlayerVel = np.array([0.0,0.0,0.0],dtype=np.float32)
 
@@ -578,6 +642,27 @@ def main(FRAGMENT_SHADER=""):
                 sphere_data.append([0,0.0,y+-5,1.0])
         sphere_data = np.array(sphere_data)
         """
+
+        ObjectMeshes = []
+        ObjectIDS = []
+
+        ObjectMeshes.extend(WorldObjectMeshes)
+        ObjectIDS.extend(WorldObjectIDS)
+        print(playerPos)
+        meshOffset = playerPos.copy()
+        meshOffset.append(0)
+        ObjectMeshes.extend([[str(float(i)+j) for i,j in zip(objectPos,meshOffset)] for objectPos in  PlayerMeshes])
+        ObjectIDS.extend(PlayerObjectIDs)
+
+
+        ObjectIDList = np.array(list(set(ObjectIDS)),dtype=np.float32)
+        ObjectIDS = np.array(ObjectIDS,dtype=np.float32)
+        print(ObjectMeshes)
+        ObjectMeshes = np.array(ObjectMeshes,dtype=np.float32)
+
+
+
+    
         pygame.event.set_grab(MouseGrabbed)
         #if MouseGrabbed:
             #pygame.mouse.set_pos((WINDOW_WIDTH/2,WINDOW_HEIGHT/2))
@@ -600,7 +685,7 @@ def main(FRAGMENT_SHADER=""):
                 if event.key == pygame.K_v:
                     EnablePhysics = not EnablePhysics
                 if event.key == K_SPACE:
-                    onGround = camera_pos[1]-1 <= -2
+                    onGround = playerPos[1]-1 <= -2
                     if onGround:
                         PlayerVel[1] += jump_strength*DeltaTime
             if event.type == pygame.MOUSEMOTION:
@@ -648,16 +733,16 @@ def main(FRAGMENT_SHADER=""):
                 accel_dir[2]+= -math.sin(yaw)*0.1
                 accel_dir[0] += math.cos(yaw)*0.1
             else:   
-                camera_pos[2]+= -math.sin(yaw)*0.1
-                camera_pos[0]+= math.cos(yaw)*0.1
+                playerPos[2]+= -math.sin(yaw)*0.1
+                playerPos[0]+= math.cos(yaw)*0.1
         if keys[K_s]:
             if EnablePhysics:
                 accel_dir[2]+= -math.sin(yaw)*-0.1
                 accel_dir[0]+= math.cos(yaw)*-0.1
             else:
                 #camera_pos -= camera_dir * 0.1
-                camera_pos[2]+= -math.sin(yaw)*-0.1
-                camera_pos[0]+= math.cos(yaw)*-0.1
+                playerPos[2]+= -math.sin(yaw)*-0.1
+                playerPos[0]+= math.cos(yaw)*-0.1
             #camera_pos[2]-= 0.1
         if keys[K_a]:
             if EnablePhysics:
@@ -665,19 +750,19 @@ def main(FRAGMENT_SHADER=""):
                 accel_dir[2]+= -math.sin(yaw+math.radians(90))*0.1
                 accel_dir[0]+= math.cos(yaw+math.radians(90))*0.1
             else:
-                camera_pos[2]+= -math.sin(yaw+math.radians(90))*0.1
-                camera_pos[0]+= math.cos(yaw+math.radians(90))*0.1
+                playerPos[2]+= -math.sin(yaw+math.radians(90))*0.1
+                playerPos[0]+= math.cos(yaw+math.radians(90))*0.1
         if keys[K_d]:
             if EnablePhysics:
                 accel_dir[2]+= -math.sin(yaw-math.radians(90))*0.1
                 accel_dir[0]+= math.cos(yaw-math.radians(90))*0.1
             else:
-                camera_pos[2]+= -math.sin(yaw-math.radians(90))*0.1
-                camera_pos[0]+= math.cos(yaw-math.radians(90))*0.1
+                playerPos[2]+= -math.sin(yaw-math.radians(90))*0.1
+                playerPos[0]+= math.cos(yaw-math.radians(90))*0.1
         if keys[K_q]:
-            camera_pos[1] -= 0.1
+            playerPos[1] -= 0.1
         if keys[K_e]:
-            camera_pos[1] += 0.1
+            playerPos[1] += 0.1
         if keys[K_z]:
             pitch += 0.1
         if keys[K_UP]:
@@ -689,12 +774,16 @@ def main(FRAGMENT_SHADER=""):
         if keys[K_RIGHT]:
             yaw -= 0.1
         camera_pos = camera_pos[:3]
+        playerPos = playerPos[:3]
         camera_dir = camera_dir[:3]
+
+
+        camera_pos = [i+j+b for i,j,b in zip(playerPos,rotate_on_x_then_y([1,1,4],pitch, yaw ),[0,0,0])]
 
 
         if EnablePhysics:
 
-            onGround = camera_pos[1]-1 <= -2
+            onGround = playerPos[1]-1 <= -2
             #print(onGround)
             if onGround:
                 speed = np.linalg.norm(PlayerVel)
@@ -722,14 +811,16 @@ def main(FRAGMENT_SHADER=""):
 
             PlayerVel[1] += gravity_strength*DeltaTime
             #camera_pos[1] += PlayerVel[1]*DeltaTime
-            camera_pos += PlayerVel*DeltaTime
+            playerPos += PlayerVel*DeltaTime
             #print(projVel)
 
             
-            if camera_pos[1]-1 < -2:
-                camera_pos[1] = -1
+            if playerPos[1]-1 < -2:
+                playerPos[1] = -1
                 if PlayerVel[1] < 0:
                     PlayerVel[1] = 0
+
+        playerPos = list(playerPos)
 
 
 
