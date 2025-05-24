@@ -495,6 +495,10 @@ def main(FRAGMENT_SHADER=""):
     object_count_location = glGetUniformLocation(shader, "ObjectCount")
     object_mesh_count_location = glGetUniformLocation(shader, "ObjectMeshCount")
 
+
+    
+    isObjectMatte_location = glGetUniformLocation(shader, "isObjectMatte")
+
     time_location = glGetUniformLocation(shader, "time")
     
     camera_pos = np.array([0.0, 0.0, 0.0], dtype=np.float32)
@@ -571,16 +575,20 @@ def main(FRAGMENT_SHADER=""):
     
 
 
+    Matte = []
+    
     ObjectMeshes = []
     ObjectIDS = []
 
     ObjectMeshes.extend(WorldObjectMeshes)
     ObjectIDS.extend(WorldObjectIDS)
+    Matte.extend([0 for _ in WorldObjectMeshes])
     print(playerPos)
     meshOffset = playerPos.copy()
     meshOffset.append(0)
     ObjectMeshes.extend([[str(float(i)+j) for i,j in zip(objectPos,meshOffset)] for objectPos in  PlayerMeshes])
     ObjectIDS.extend(PlayerObjectIDs)
+    Matte.extend([1.0 for _ in PlayerObjectIDs])
 
     
     
@@ -862,6 +870,9 @@ def main(FRAGMENT_SHADER=""):
 
             glUniform1i(object_count_location, len(ObjectIDList))
             glUniform1i(object_mesh_count_location, len(ObjectIDS))
+
+            MatteArray = np.array(Matte,dtype = np.float32)
+            glUniform1fv(isObjectMatte_location,len(MatteArray),MatteArray.flatten())
 
             glActiveTexture(GL_TEXTURE0)
             glBindTexture(GL_TEXTURE_3D, textureID)
